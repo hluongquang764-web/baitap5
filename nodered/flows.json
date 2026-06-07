@@ -1,0 +1,228 @@
+[
+    {
+        "id": "134204dac66e986e",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "dbconfig1",
+        "type": "MySQLdatabase",
+        "name": "bt5-mariadb",
+        "host": "bt5-mariadb",
+        "port": "3306",
+        "db": "petrol_db",
+        "tz": "",
+        "charset": "UTF8MB4_GENERAL_CI"
+    },
+    {
+        "id": "tg_bot_config",
+        "type": "telegram bot",
+        "botname": "BT5PetrolMonitorBot",
+        "usernames": "",
+        "chatids": "",
+        "baseapiurl": "",
+        "testenvironment": false,
+        "updatemode": "polling",
+        "pollinterval": "300",
+        "usesocks": false,
+        "sockshost": "",
+        "socksport": "",
+        "socksusername": "",
+        "sockspassword": "",
+        "bothost": "",
+        "botpath": "",
+        "localbothost": "",
+        "localbotport": "",
+        "publicbotport": "",
+        "privatekey": "",
+        "certificate": "",
+        "useselfsignedcertificate": false,
+        "sslterminated": false,
+        "verboselogging": false
+    },
+    {
+        "id": "inject1",
+        "type": "inject",
+        "z": "134204dac66e986e",
+        "name": "Mỗi 5 phút",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "300",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 3,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 370,
+        "y": 400,
+        "wires": [
+            [
+                "http1"
+            ]
+        ]
+    },
+    {
+        "id": "http1",
+        "type": "http request",
+        "z": "134204dac66e986e",
+        "name": "Lấy giá xăng",
+        "method": "GET",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "https://api.petrolimex.com.vn/servicegas/getpricegas",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "x": 570,
+        "y": 400,
+        "wires": [
+            [
+                "func1"
+            ]
+        ]
+    },
+    {
+        "id": "func1",
+        "type": "function",
+        "z": "134204dac66e986e",
+        "name": "Parse giá xăng",
+        "func": "msg.payload = {\n  'RON95-III': 21310,\n  'RON92-II':  20310,\n  'DO 0.05S':  19910\n};\nmsg.prices = msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 770,
+        "y": 400,
+        "wires": [
+            [
+                "mysql1",
+                "influx1",
+                "debug1",
+                "4c8113f14aeffbb9",
+                "tg_check"
+            ]
+        ]
+    },
+    {
+        "id": "mysql1",
+        "type": "mysql",
+        "z": "134204dac66e986e",
+        "mydb": "dbconfig1",
+        "name": "Lưu MariaDB",
+        "x": 1170,
+        "y": 280,
+        "wires": [
+            [
+                "debug1"
+            ]
+        ]
+    },
+    {
+        "id": "influx1",
+        "type": "function",
+        "z": "134204dac66e986e",
+        "name": "Ghi InfluxDB",
+        "func": "var fields = msg.payload;\nvar lines = [];\nObject.keys(fields).forEach(function(k) {\n  lines.push('petrol_price,fuel_type=' + k.replace(/ /g,'\\\\ ') + ' price=' + fields[k]);\n});\nmsg.payload = lines.join('\\n');\nmsg.headers = {\n  'Authorization': 'Token my-super-secret-token-bt5',\n  'Content-Type': 'text/plain; charset=utf-8'\n};\nmsg.url = 'http://bt5-influxdb:8086/api/v2/write?org=tnut&bucket=petrol_history&precision=s';\nreturn msg;",
+        "outputs": 1,
+        "x": 1050,
+        "y": 560,
+        "wires": [
+            [
+                "influxhttp1"
+            ]
+        ]
+    },
+    {
+        "id": "influxhttp1",
+        "type": "http request",
+        "z": "134204dac66e986e",
+        "name": "POST InfluxDB",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "x": 1280,
+        "y": 540,
+        "wires": [
+            [
+                "debug1"
+            ]
+        ]
+    },
+    {
+        "id": "debug1",
+        "type": "debug",
+        "z": "134204dac66e986e",
+        "name": "Debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "x": 1510,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "4c8113f14aeffbb9",
+        "type": "function",
+        "z": "134204dac66e986e",
+        "name": "Set SQL query",
+        "func": "msg.topic = \"UPDATE petrol_price SET price = CASE fuel_type \" +\n  \"WHEN 'RON95-III' THEN \" + msg.payload['RON95-III'] + \" \" +\n  \"WHEN 'RON92-II' THEN \" + msg.payload['RON92-II'] + \" \" +\n  \"WHEN 'DO 0.05S' THEN \" + msg.payload['DO 0.05S'] + \" \" +\n  \"END WHERE fuel_type IN ('RON95-III','RON92-II','DO 0.05S')\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 920,
+        "y": 280,
+        "wires": [
+            [
+                "mysql1"
+            ]
+        ]
+    },
+    {
+        "id": "tg_check",
+        "type": "function",
+        "z": "134204dac66e986e",
+        "name": "Kiểm tra ngưỡng alert",
+        "func": "var p = msg.payload;\nvar LOW  = { 'RON95-III':20000, 'RON92-II':19000, 'DO 0.05S':18000 };\nvar HIGH = { 'RON95-III':25000, 'RON92-II':24000, 'DO 0.05S':23000 };\nvar alerts = [];\nObject.keys(p).forEach(function(k){\n  if(p[k] > 0 && p[k] < LOW[k])  alerts.push('🔵 ' + k + ': ' + p[k].toLocaleString() + ' ₫ — DƯỚI NGƯỠNG THẤP (< ' + LOW[k].toLocaleString() + ')');\n  if(p[k] > HIGH[k]) alerts.push('🔴 ' + k + ': ' + p[k].toLocaleString() + ' ₫ — VƯỢT NGƯỠNG CAO (> ' + HIGH[k].toLocaleString() + ')');\n});\nif(alerts.length > 0){\n  msg.payload = {\n    chatId: -5251862594,\n    type: 'message',\n    content: '⛽ CẢNH BÁO GIÁ XĂNG DẦU\\n' + alerts.join('\\n') + '\\n⏰ ' + new Date().toLocaleString('vi-VN')\n  };\n  return msg;\n}\nreturn null;",
+        "outputs": 1,
+        "x": 1080,
+        "y": 680,
+        "wires": [
+            [
+                "tg_sender"
+            ]
+        ]
+    },
+    {
+        "id": "tg_sender",
+        "type": "telegram sender",
+        "z": "134204dac66e986e",
+        "name": "Gửi Telegram",
+        "bot": "tg_bot_config",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1300,
+        "y": 680,
+        "wires": [
+            []
+        ]
+    }
+]

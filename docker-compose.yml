@@ -1,0 +1,112 @@
+services:
+
+  bt5-mariadb:
+    image: mariadb:latest
+    container_name: bt5-mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: petrol_db
+      MYSQL_USER: petrol_user
+      MYSQL_PASSWORD: petrol123
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mariadb/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - bt5_net
+
+  bt5-influxdb:
+    image: influxdb:2.7
+    container_name: bt5-influxdb
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: admin123456
+      DOCKER_INFLUXDB_INIT_ORG: tnut
+      DOCKER_INFLUXDB_INIT_BUCKET: petrol_history
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-super-secret-token-bt5
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - bt5_net
+
+  bt5-nodered:
+    image: nodered/node-red:latest
+    container_name: bt5-nodered
+    restart: unless-stopped
+    user: "1000:1000"
+    volumes:
+      - ./nodered:/data
+    depends_on:
+      - bt5-mariadb
+      - bt5-influxdb
+    networks:
+      - bt5_net
+
+  bt5-grafana:
+    image: grafana/grafana:latest
+    container_name: bt5-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - bt5-influxdb
+    networks:
+      - bt5_net
+
+  bt5-flask:
+    build: ./flask-api
+    container_name: bt5-flask
+    restart: unless-stopped
+    environment:
+      DB_HOST: bt5-mariadb
+      DB_PORT: 3306
+      DB_NAME: petrol_db
+      DB_USER: petrol_user
+      DB_PASS: petrol123
+    depends_on:
+      - bt5-mariadb
+    networks:
+      - bt5_net
+
+  bt5-nginx:
+    image: nginx:alpine
+    container_name: bt5-nginx
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - bt5-flask
+      - bt5-grafana
+      - bt5-nodered
+    networks:
+      - bt5_net
+
+  bt5-cloudflare:
+    image: cloudflare/cloudflared:latest
+    container_name: bt5-cloudflare
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiOTkwYThlZWU5OTk5MzU3NmI0ZWJmZmE2NWU0YTI3ZWMiLCJ0IjoiYTdmYjI2NWItZjk0NC00NzU4LTk3MGQtYjZhZTg2NzdhNzY1IiwicyI6IlpHVXlORGt6Wm1ZdE1UVTNZeTAwTVRsaUxXRXhPVGN0TjJFd01HWXhOV1JoWW1NMSJ9
+    depends_on:
+      - bt5-nginx
+    networks:
+      - bt5_net
+
+networks:
+  bt5_net:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+  influxdb_data:
+  grafana_data:

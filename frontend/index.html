@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor Giá Xăng Dầu — BT5 TEE0421</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    header { background: #1e293b; padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.2rem; font-weight: 600; color: #38bdf8; }
+    header .info { font-size: 0.78rem; color: #94a3b8; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+    .threshold-info { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px 20px; margin-bottom: 20px; font-size: 0.83rem; color: #94a3b8; display: flex; gap: 24px; flex-wrap: wrap; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-ok { background: #22c55e; } .dot-high { background: #ef4444; } .dot-low { background: #3b82f6; }
+    .price-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 20px 24px; border: 1px solid #334155; }
+    .card.ok { border-color: #22c55e; background: #152a1b; }
+    .card.alert-high { border-color: #ef4444; background: #2a1515; }
+    .card.alert-low { border-color: #3b82f6; background: #151f2a; }
+    .card-label { font-size: 0.78rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .card-value { font-size: 2rem; font-weight: 700; color: #38bdf8; }
+    .card-unit { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-top: 8px; }
+    .badge-ok { background: #166534; color: #86efac; } .badge-high { background: #7f1d1d; color: #fca5a5; }
+    .badge-low { background: #1e3a5f; color: #93c5fd; } .badge-no-data { background: #374151; color: #9ca3af; }
+    .last-update { font-size: 0.78rem; color: #64748b; margin-bottom: 20px; }
+    .grafana-section h2 { font-size: 1rem; font-weight: 600; color: #94a3b8; margin-bottom: 12px; }
+    .grafana-section iframe { width: 100%; height: 380px; border: none; border-radius: 12px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>⛽ Monitor Giá Xăng Dầu Realtime</h1>
+  <div class="info">BT5 TEE0421 · Lương Quang Hà · K225480106010</div>
+</header>
+<div class="container">
+  <div class="threshold-info">
+    <span><span class="dot dot-low"></span>RON95 &lt; 20,000 | RON92 &lt; 19,000 | DO &lt; 18,000 → ALERT LOW</span>
+    <span><span class="dot dot-ok"></span>Trong ngưỡng → OK</span>
+    <span><span class="dot dot-high"></span>RON95 &gt; 25,000 | RON92 &gt; 24,000 | DO &gt; 23,000 → ALERT HIGH</span>
+  </div>
+  <div class="price-grid" id="price-grid">
+    <div class="card"><div class="card-label">Đang tải...</div><div class="card-value">---</div></div>
+  </div>
+  <div class="last-update">Cập nhật lần cuối: <span id="update-time">---</span> &nbsp;·&nbsp; Làm mới sau: <span id="countdown">10</span>s</div>
+  <div class="grafana-section">
+    <h2>📈 Biểu đồ lịch sử (InfluxDB · Grafana)</h2>
+    <iframe src="/grafana/d-solo/ad7zvlq/new-dashboard?orgId=1&panelId=1&refresh=30s" frameborder="0"></iframe>
+  </div>
+</div>
+<script>
+  const API_URL = '/api/petrol';
+  const INTERVAL = 10;
+  let countdown = INTERVAL;
+  let timer;
+  function fmt(n) { return n ? Number(n).toLocaleString('vi-VN') + ' ₫' : '---'; }
+  function badgeClass(s) { return s==='OK'?'badge-ok':s==='ALERT_HIGH'?'badge-high':s==='ALERT_LOW'?'badge-low':'badge-no-data'; }
+  function badgeText(s) { return s==='OK'?'✅ OK':s==='ALERT_HIGH'?'🔴 ALERT HIGH':s==='ALERT_LOW'?'🔵 ALERT LOW':'⚪ Chưa có dữ liệu'; }
+  function cardClass(s) { return s==='OK'?'card ok':s==='ALERT_HIGH'?'card alert-high':s==='ALERT_LOW'?'card alert-low':'card'; }
+  async function fetchPetrol() {
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const grid = document.getElementById('price-grid');
+      grid.innerHTML = '';
+      data.forEach(item => {
+        const div = document.createElement('div');
+        div.className = cardClass(item.status);
+        div.innerHTML = `<div class="card-label">${item.fuel_type}</div><div class="card-value">${fmt(item.price)}</div><div class="card-unit">${item.unit}</div><span class="status-badge ${badgeClass(item.status)}">${badgeText(item.status)}</span>`;
+        grid.appendChild(div);
+      });
+      if (data.length > 0) document.getElementById('update-time').textContent = data[0].updated_at;
+    } catch(err) {
+      document.getElementById('price-grid').innerHTML = '<div class="card"><div class="card-label">Lỗi kết nối API</div></div>';
+    }
+  }
+  function startCountdown() {
+    countdown = INTERVAL; clearInterval(timer);
+    timer = setInterval(() => { countdown--; document.getElementById('countdown').textContent = countdown; if (countdown <= 0) { fetchPetrol(); countdown = INTERVAL; } }, 1000);
+  }
+  fetchPetrol(); startCountdown();
+</script>
+</body>
+</html>
