@@ -3,7 +3,10 @@
 **Họ và tên:** Lương Quang Hà  
 **MSSV:** K225480106010  
 **Lớp:** 58KTPM / K58KTP.K01  
-**Môn:** Phát triển ứng dụng với mã nguồn mở — TEE0421  
+**Môn:** Phát triển ứng dụng với mã nguồn mở — TEE0421 
+
+**Cần switch sang branch master:
+Click main → chọn master → sẽ thấy toàn bộ file code.:** 
 
 ---
 
