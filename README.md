@@ -686,7 +686,8 @@ Double-click node **Parse giá xăng** trong Node-RED → đổi giá RON95 thà
 > 🔵 RON95-III: 19,000 đ — DƯỚI NGƯỠNG THẤP (< 20,000)
 > ⏰ 05:46:21 7/6/2026
 > ```
-<img width="1290" height="2796" alt="image" src="https://github.com/user-attachments/assets/231856c2-61d2-4469-b889-8c0e44697586" />
+<img width="1290" height="2796" alt="image" src="https://github.com/user-attachments/assets/acc5a40b-61eb-4a72-af04-ec9825be0141" />
+
 
 
 ---
